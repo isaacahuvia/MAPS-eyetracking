@@ -4,9 +4,10 @@ Working with eyetracking data for MAPS
 ### Code is organized into four scripts:
 
 1_Read Data.R: This reads tab delimited data files for each participant, combines them into a single .rds file, and saves it
-2_Add AOIs.R: This reads AOIs from the file `AOI List.xlsx` (where they are manually inputted), adds them to the dataset, and saves it
-3_Make Eyetracking Data.R: This uses `eyetrackingR`'s `make_eyetracking_data` function to transform the dataset into one that is ready for analysis
-4_Analysis.R: TBD analysis
+2_Add qIDs.R: Adds question IDs manually and saves the new dataset
+3_Add AOIs.R: This reads AOIs from the file `AOI List.xlsx` (where they are manually inputted), adds them to the dataset, and saves it
+4_Make Eyetracking Data.R: This uses `eyetrackingR`'s `make_eyetracking_data` function to transform the dataset into one that is ready for analysis
+5_Analysis.R: TBD analysis
 
 ### Additional files: 
 
