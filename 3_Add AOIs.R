@@ -19,6 +19,13 @@ load(file = lookup$pc$clean_data$with_qIDs)
 
 
 
+####  Update AOIs  ####
+#Enlargen AOIs by 100 pixels on each side, and 100 pixels upwards for qText, to account for skew in raw data
+AOIs$xMin <- AOIs$xMin - 100
+AOIs$xMax <- AOIs$xMax + 100
+AOIs$yMin[AOIs$AOI == "qText"] <- AOIs$yMin[AOIs$AOI == "qText"] - 100
+
+
 ####  Add AOIs  ####
 for(AOI in unique(AOIs$AOI)) {
   
