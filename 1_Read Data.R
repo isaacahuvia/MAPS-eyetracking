@@ -15,10 +15,12 @@ lookup <- yaml::read_yaml("R:\\MSS\\Research\\Projects\\MAPS-FUS\\Tween Wave\\Su
 ####  Read Data  ####
 #A list of all files for which we have data for a specific participant, to load
 file_list <- list.files(path = lookup$pc$raw_data, full.names = T)
+#Remove files that shouldn't be downloaded yet
+file_list <- file_list[-96]
 
-#Limit to only QA files
-QA <- c("3251", "3332", "3589", "4682", "4957")
-file_list <- file_list[grepl(paste(QA, collapse = "|"), file_list)]
+# #Limit to only QA files
+# QA <- c("3251", "3332", "3589", "4682", "4957")
+# file_list <- file_list[grepl(paste(QA, collapse = "|"), file_list)]
 
 
 #Read data
