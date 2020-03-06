@@ -1,0 +1,437 @@
+---
+title: "Tobii Descriptive Report v4"
+date: '`r paste0("Created July 26, 2019. Last updated ", format(Sys.Date(), "%B %d, %Y"))`'
+output: html_document
+editor_options: 
+  chunk_output_type: console
+---
+
+```{r, include = F}
+## Startup
+rm(list = ls())
+library(yaml)
+library(eyetrackingR)
+library(ggplot2)
+library(dplyr)
+library(openxlsx)
+library(knitr)
+library(plyr)
+library(cowplot)
+library(magick)
+lookup <- yaml::read_yaml("R:\\MSS\\Research\\Projects\\MAPS-FUS\\Tween Wave\\Survey Visit (ECHO)\\Code\\Eyetracking\\Eyetracking Lookup.yaml")
+
+## Load Data
+load(file = lookup$clean_data$analysis_ready$item_level)
+load(file = lookup$clean_data$analysis_ready$participant_level)
+questions <- as.data.frame(sapply(openxlsx::read.xlsx("R:\\MSS\\Research\\Projects\\MAPS-FUS\\Tween Wave\\Survey Visit (ECHO)\\Data\\Eyetracking\\Question Lookup.xlsx"),
+                                  trimws),
+                           stringsAsFactors = F)
+
+## Set functions
+pValue <- function(x) {
+  x <- as.numeric(x)
+  if(x < .01) {
+    y = "<0.01"
+  } else {
+    y = round(x, 2)
+  }
+  return(y)
+}
+```
+
+This report includes eye-tracking statistics for the complete MAPS - ECHO sample. The report covers the following areas:
+
+(1) Average response time by participant,
+(2) Average time spent looking at the question text by participant, and
+(3) Average response time and time spent looking at the question text by response selection.
+
+The report furthermore includes an analysis of (1) and (2) for items with the most variation in response- and gaze-time. Lastly, section (3) explores the hypothesis that participants take longer to read the question text on items where they do not answer in the extremes.
+
+*Sample*
+
+The sample for this analysis is not limited by percentage of valid eyetracking samples. There are `r nrow(tobii.participant)` participants in the Tobii sample. Items where participants took more than 90 seconds to respond were removed.
+
+<P style="page-break-before: always">
+### 1A. Average Response Time by Participant
+
+```{r, include = F}
+lessThan5 = round(mean(tobii.participant$dur.tot < 5), 2)
+min = round(min(tobii.participant$dur.tot), 1)
+avg = round(mean(tobii.participant$dur.tot), 1)
+```
+
+The lowest average response time was `r min` seconds, while the average was `r avg` seconds. Some in the literature have suggested that a useful cutoff for average response time (under which responses should be treated as invalid) should be approximately 2 seconds. One reason why our questions take longer to respond to, and why this cutoff might not apply here, has to do with how they are presented. In Tobii, questions are presented one at a time, and the participant must hit submit before seeing the next question. This can take much longer than questionnaires where items are presented in rows on the same page and respondents can merely scroll through. This 2 second benchmark was also developed with an adult sample.
+
+```{r, echo = F, warning = F, fig.height = 3.75, fig.width = 5.25}
+ggplot(tobii.participant) +
+  geom_density(aes(dur.tot)) +
+  geom_point(aes(x = dur.tot, y = 0), size = 2) +
+  xlim(0, 25) + ylim(0, .5) +
+  xlab("Average Response Time (Seconds)") + ylab("Density") +
+  theme_classic()
+```
+
+I removed questions where the duration was over 90 seconds, as these are likely times when the participant took a break during the survey. The two outliers in this plot (3969 and 4203) are participants who took a very long time for nearly every question.
+
+<P style="page-break-before: always">
+### 1B. Average Response Time by Participant - 10 Highest-Variance Items
+
+The following plot includes the same metric, but only across the 10 items with the largest standard deviation in response time.
+
+```{r, echo = F, warning = F, fig.height = 3.75, fig.width = 5.25}
+topItems <- tobii.item %>%
+  dplyr::group_by(qID) %>%
+  dplyr::summarise(sd = sd(dur.tot)) %>%
+  dplyr::arrange(-sd) %>%
+  dplyr::select(qID) %>%
+  head(10)
+
+tobii.participant_subset <- tobii.item %>%
+  dplyr::filter(qID %in% topItems$qID) %>%
+  dplyr::group_by(participantID) %>%
+  dplyr::summarise(dur.tot = mean(dur.tot),
+                   dur.qText = mean(dur.qText))
+
+ggplot(tobii.participant_subset) +
+  geom_density(aes(dur.tot)) +
+  geom_point(aes(x = dur.tot, y = 0), size = 2) +
+  xlim(0, 25) + ylim(0, .5) +
+  xlab("Average Response Time (Seconds) - Highest-Variance Items") + ylab("Density") +
+  theme_classic()
+```
+
+And here are those items:
+
+```{r, echo = F, warning = F}
+questions_subset <- questions[questions$qID %in% topItems$qID,] %>%
+  dplyr::arrange(qID) %>%
+  dplyr::select(qID, qText)
+
+cutoff = 175
+for(i in 1:nrow(questions_subset)) {
+  if(nchar(questions_subset$qText[i]) > cutoff) {
+    a <- substr(questions_subset$qText[i], 1, cutoff)
+    b <- "..."
+    questions_subset$qText[i] <- paste0(a, b)
+  }
+}
+knitr::kable(questions_subset)
+```
+
+<P style="page-break-before: always">
+### 1C. Average Response Time by Participant, by Measure
+
+```{r, echo = F, warning = F, fig.height = 7.5, fig.width = 5.25}
+tobii.item %>%
+  dplyr::group_by(participantID, measure) %>%
+  dplyr::summarise(dur.tot = mean(dur.tot),
+                   dur.qText = mean(dur.qText)) %>%
+  ggplot() +
+  geom_density(aes(dur.tot)) +
+  geom_point(aes(x = dur.tot, y = 0), size = 2) +
+  geom_vline(data = ddply(tobii.item, "measure", summarize, dur.tot = mean(dur.tot)), aes(xintercept = dur.tot)) +
+  xlim(0, 25) + ylim(0, .5) +
+  xlab("Average Response Time (Seconds)") + ylab("Density") +
+  theme_classic() +
+  facet_grid(rows = vars(measure))
+```
+
+*Key*
+A: Anger
+F: Fatigue
+GH: Global Health
+PA: Physical Activity
+PFR: Family Relationships
+PSE: Psychological Stress
+
+<P style="page-break-before: always">
+### 2A. Average Time Looking at Question Text by Participant
+
+```{r, include = F}
+qTextAvg = round(mean(tobii.participant$dur.qText), 1)
+lessThan0.5 = round(mean(tobii.participant$dur.qText < .5), 2)
+lessThan0.1 = round(mean(tobii.participant$dur.qText < .1), 2)
+```
+
+The average fixation time on the question text was `r qTextAvg` seconds. `r lessThan0.5` of participants fixated on the question text for less than .5 seconds on average.
+
+```{r, echo = F, warning = F, fig.height = 3.75, fig.width = 5.25}
+ggplot(tobii.participant) +
+  geom_density(aes(dur.qText)) +
+  geom_point(aes(x = dur.qText, y = 0), size = 2) +
+  xlim(0, 10) + ylim(0, 1) +
+  xlab("Fixation Duration - Question Text (Seconds)") + ylab("Density") +
+  theme_classic()
+```
+
+<P style="page-break-before: always">
+### 2B. Average Time Looking at Question Text by Participant
+
+The following plot includes the same metric, but only across the 10 items with the largest standard deviation in time spent looking at question text.
+
+```{r, echo = F, warning = F, fig.height = 3.75, fig.width = 5.25}
+topItems <- tobii.item %>%
+  dplyr::group_by(qID) %>%
+  dplyr::summarise(sd = sd(dur.qText)) %>%
+  dplyr::arrange(-sd) %>%
+  dplyr::select(qID) %>%
+  head(10)
+
+tobii.participant_subset <- tobii.item %>%
+  dplyr::filter(qID %in% topItems$qID) %>%
+  dplyr::group_by(participantID) %>%
+  dplyr::summarise(dur.tot = mean(dur.tot),
+                   dur.qText = mean(dur.qText))
+
+ggplot(tobii.participant_subset) +
+  geom_density(aes(dur.qText)) +
+  geom_point(aes(x = dur.qText, y = 0), size = 2) +
+  xlim(0, 25) + ylim(0, 1) +
+  xlab("Average Fixation Time (Seconds) - Highest-Variance Items") + ylab("Density") +
+  theme_classic()
+```
+
+And here are those items:
+
+```{r, echo = F, warning = F}
+questions_subset <- questions[questions$qID %in% topItems$qID,] %>%
+  dplyr::arrange(qID) %>%
+  dplyr::select(qID, qText)
+
+cutoff = 175
+for(i in 1:nrow(questions_subset)) {
+  if(nchar(questions_subset$qText[i]) > cutoff) {
+    a <- substr(questions_subset$qText[i], 1, cutoff)
+    b <- "..."
+    questions_subset$qText[i] <- paste0(a, b)
+  }
+}
+knitr::kable(questions_subset)
+```
+
+<P style="page-break-before: always">
+### 2C. Average Time Looking at Question Text by Participant, by Measure
+
+```{r, echo = F, warning = F, fig.height = 7.5, fig.width = 5.25}
+tobii.item %>%
+  dplyr::group_by(participantID, measure) %>%
+  dplyr::summarise(dur.tot = mean(dur.tot),
+                   dur.qText = mean(dur.qText)) %>%
+  ggplot() +
+  geom_density(aes(dur.qText)) +
+  geom_point(aes(x = dur.qText, y = 0), size = 2) +
+  geom_vline(data = ddply(tobii.item, "measure", summarize, dur.qText = mean(dur.qText)), aes(xintercept = dur.qText)) +
+  xlim(0, 10) + ylim(0, 1) +
+  xlab("Average Fixation Time (Seconds)") + ylab("Density") +
+  theme_classic() +
+  facet_grid(rows = vars(measure))
+```
+
+*Key*
+A: Anger
+F: Fatigue
+GH: Global Health
+PA: Physical Activity
+PFR: Family Relationships
+PSE: Psychological Stress
+
+<P style="page-break-before: always">
+### 3. Average Response Time and Average Time Looking at Question Text by Type of Response
+```{r, echo = F, warning = F, fig.height = 4, fig.width = 5}
+#ADD AGE
+model.tot <- summary(lm(data = tobii.item, dur.tot ~ extremeFlag))
+
+tobii.item %>%
+  dplyr::group_by(extremeFlag) %>%
+  dplyr::summarise(mean = mean(dur.tot)) %>%
+  ggplot() +
+  geom_bar(aes(extremeFlag, mean), stat = "identity") +
+  scale_x_discrete(name = "Type of Response", labels = c("Not Extreme", "Extreme")) +
+  scale_y_continuous(name = "Question Duration (Seconds)") +
+  labs(title = "Average Response Time by Type of Response") +
+  theme_classic()
+
+knitr::kable(model.tot$coefficients, digits = 2)
+```
+
+```{r, echo = F, warning = F, fig.height = 4, fig.width = 5}
+model.qTextWithControl <- summary(lm(data = tobii.item, dur.qText ~ extremeFlag + pctValidGazeSamples))
+
+tobii.item %>%
+  dplyr::group_by(extremeFlag) %>%
+  dplyr::summarise(mean = mean(dur.qText)) %>%
+  ggplot() +
+  geom_bar(aes(extremeFlag, mean), stat = "identity") +
+  scale_x_discrete(name = "Type of Response", labels = c("Not Extreme", "Extreme")) +
+  scale_y_continuous(name = "Time Spent Looking at Question Text (Seconds)") +
+  labs(title = "Average Time Spent Looking at 
+Question Text by Type of Response") +
+  theme_classic()
+
+knitr::kable(model.qTextWithControl$coefficients, digits = 2)
+```
+
+<P style="page-break-before: always">
+### 4. Average Response Time and Average Time Looking at Question Text by Position of Item in Survey
+
+Total time spent on question over time: 
+
+```{r, echo = F, warning = F, fig.height = 3.75, fig.width = 5.25}
+tobii.item %>%
+  dplyr::group_by(qIndex) %>%
+  dplyr::summarise(dur.tot = mean(dur.tot, na.rm = T)) %>%
+  ggplot() +
+  geom_line(aes(qIndex, dur.tot)) +
+  geom_smooth(aes(qIndex, dur.tot), method = "lm") +
+  scale_x_continuous(name = "Question Index") +
+  scale_y_continuous(name = "Average Response Time (Seconds)", limits = c(0, 15)) +
+  theme_classic()
+```
+
+Time spent looking at question text over time: 
+
+```{r, echo = F, warning = F, fig.height = 3.75, fig.width = 5.25}
+tobii.item %>%
+  dplyr::group_by(qIndex) %>%
+  dplyr::summarise(dur.qText = mean(dur.qText, na.rm = T)) %>%
+  ggplot() +
+  geom_line(aes(qIndex, dur.qText)) +
+  geom_smooth(aes(qIndex, dur.qText), method = "lm") +
+  scale_x_continuous(name = "Question Index") +
+  scale_y_continuous(name = "Average Fixation Time (Seconds)", limits = c(0, 4)) +
+  theme_classic()
+```
+
+<P style="page-break-before: always">
+### 5. Proportion of Participants Selecting the Lowest (First) Response by Position of Item in Survey
+
+```{r, echo = F, warning = F, message = F}
+rm(list = ls())
+library(yaml)
+library(eyetrackingR)
+library(ggplot2)
+library(dplyr)
+library(RCurl)
+library(RItools)
+lookup <- yaml::read_yaml("R:\\MSS\\Research\\Projects\\MAPS-FUS\\Tween Wave\\Survey Visit (ECHO)\\Code\\Eyetracking\\Eyetracking Lookup.yaml")
+
+
+
+####  Read Data  ####
+## Tobii data with qIndex
+load(file = lookup$clean_data$analysis_ready$item_level)
+
+
+
+## REDCap data, then join with tracker to generate qIndex
+token.FUS <- read.csv("P:\\Personal REDCap API Token - FUS.txt", header = F, stringsAsFactors = F)[[1]][1]
+REDCap.FUS <- read.csv(text = postForm(uri="https://redcap.nubic.northwestern.edu/redcap/api/",
+                                       token=token.FUS,
+                                       content="record",
+                                       format="csv",
+                                       type="flat",
+                                       "forms[0]"="names_demographics",
+                                       "forms[1]"="tween_echo_visit",
+                                       rawOrLabel="raw",
+                                       rawOrLabelHeaders="raw",
+                                       exportCheckboxLabel="false",
+                                       exportSurveyFields="false",
+                                       exportDataAccessGroups="false",
+                                       returnFormat="json",
+                                       filterLogic="[tev_vstatus] = 2"),
+                       stringsAsFactors = F)
+REDCap.FUS <- dplyr::rename(REDCap.FUS, participantID = studyid)
+
+token.ECHO <- read.csv("P:\\Personal REDCap API Token - ECHO.txt", header = F, stringsAsFactors = F)[[1]][1]
+REDCap.ECHO <- read.csv(text = postForm(uri='https://redcap.nubic.northwestern.edu/redcap/api/',
+                                        token=token.ECHO,
+                                        content='record',
+                                        format='csv',
+                                        type='flat',
+                                        rawOrLabel='raw',
+                                        rawOrLabelHeaders='raw',
+                                        exportCheckboxLabel='false',
+                                        exportSurveyFields='false',
+                                        exportDataAccessGroups='false',
+                                        returnFormat='json'),
+                        stringsAsFactors = F)
+REDCap.ECHO <- dplyr::rename(REDCap.ECHO, participantID = studyid)
+REDCap.ECHO <- REDCap.ECHO[REDCap.ECHO$participantID %in% REDCap.FUS$participantID,]
+
+tracker <- openxlsx::read.xlsx("R:\\MSS\\Research\\Projects\\MAPS-FUS\\Tween Wave\\Survey Visit (ECHO)\\MAP-DB & PROMIS Manual Counterbalancing.xlsx") %>%
+  dplyr::rowwise() %>%
+  dplyr::mutate(measureOrder = paste0(c(Set.1, Set.2, Set.3), collapse = ", ")) %>% 
+  dplyr::select(participantID = ID,
+                measureOrder) %>%
+  dplyr::ungroup()
+
+lookup <- openxlsx::read.xlsx("R:\\MSS\\Research\\Projects\\MAPS-FUS\\Tween Wave\\Survey Visit (ECHO)\\Data\\REDCap Question Index Lookup.xlsx") 
+
+REDCap <- REDCap.ECHO %>%
+  dplyr::select(participantID, lookup$varName.raw) %>%
+  dplyr::filter(!participantID %in% tobii.item$participantID) %>%
+  tidyr::gather(key = "qID", value = "value", c6mapdba:c6proang07)
+
+REDCap <- merge(REDCap, tracker, by = "participantID")
+
+for(qID in REDCap$qID) {
+  
+  REDCap$qID[REDCap$qID == qID] <- lookup$varName.fixed[lookup$varName.raw == qID]
+  
+}
+
+REDCap$qIndex <- NA
+
+for(id in unique(REDCap$participantID)) {
+  
+  measureOrder <- strsplit(tracker$measureOrder[tracker$participantID == id], split = ", ")[[1]]
+
+  questionOrder <- c()
+  
+  for(measure in measureOrder) {
+  
+    if(measure == measureOrder[1]) {
+      
+      questionOrder <- lookup$varName.fixed[lookup$groupName.fixed == measure]
+      
+    } else {
+      
+      questionOrder <- c(questionOrder, lookup$varName.fixed[lookup$groupName.fixed == measure])
+      
+    }
+    
+  }
+  
+  for(question in questionOrder) {
+    
+    REDCap$qIndex[REDCap$participantID == id & REDCap$qID == question] <- which(questionOrder == question)
+    
+  }
+  
+}
+
+REDCap <- dplyr::arrange(REDCap, participantID, qIndex)
+
+
+
+####  Plot  ####
+tobii.plot <- tobii.item %>%
+  dplyr::group_by(qIndex) %>%
+  dplyr::summarise(pctLowest = mean(minimumFlag)) %>%
+  dplyr::mutate(class = "Tobii")
+
+REDCap.plot <- REDCap %>%
+  dplyr::mutate(minimumFlag = value == 1) %>%
+  dplyr::group_by(qIndex) %>%
+  dplyr::summarise(pctLowest = mean(minimumFlag, na.rm = T)) %>%
+  dplyr::mutate(class = "REDCap")
+
+plotData <- rbind(tobii.plot, REDCap.plot)
+
+ggplot(data = plotData) +
+  geom_point(aes(qIndex, pctLowest, color = class)) +
+  geom_smooth(aes(qIndex, pctLowest, color = class), method = "loess") +
+  scale_y_continuous(name = "Percent of Participants Selecting Lowest (First) Response", limits = c(0, 1)) +
+  scale_x_continuous(name = "Question Index") +
+  labs(color = guide_legend(title = "Response Type", reverse = T))
+```
