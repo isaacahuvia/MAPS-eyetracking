@@ -1,0 +1,64 @@
+####################################
+##  Full Sample Data Exploration  ##
+####################################
+
+####  Startup  ####
+library(easypackages)
+libraries("yaml", "ggplot2", "tidyverse")
+
+rm(list = ls())
+
+filenames <- yaml::read_yaml("C:\\Users\\isaac\\Box\\MAPS - ECHO Tobii Analysis\\MAPS-eyetracking\\filenames.yaml")
+
+load(filenames$clean_data$with_direct_indicators)
+
+
+
+####  Analysis  ####
+## Fixation time
+df %>%
+  ggplot() +
+  geom_histogram(aes(tobii.avgQTextFixationTime))
+
+
+## Tobii indicators and reading level
+df %>%
+  gather(key = "measure", value = "Score", starts_with("wj")) %>%
+  gather(key = "tobii_indicator", value = "Duration", c("tobii.avgQTextFixationTime", "tobii.avgQuestionDuration")) %>%
+  mutate(tobii_indicator = case_when(tobii_indicator == "tobii.avgQTextFixationTime" ~ "Average Question Text Fixation",
+                                     tobii_indicator == "tobii.avgQuestionDuration"  ~ "Average Question Duration (Overall)"),
+         measure = case_when(measure == "wj.letterWordID.standardScore"      ~ "WJ - Letter-Word ID",
+                             measure == "wj.passageCompletion.standardScore" ~ "WJ - Passage Completion",
+                             measure == "wj.readingFluency.standardScore"    ~ "WJ - Reading Fluency")) %>%
+  ggplot(aes(Duration, Score)) +
+    geom_point() +
+    geom_smooth(method = "lm") +
+    scale_x_continuous(name = "Duration (Seconds)") +
+    scale_y_continuous(name = "Standard Score") +
+    facet_grid(measure ~ tobii_indicator, scales = "free_x")
+
+
+## Reading level and direct indicators
+df %>%
+  gather(key = "measure", value = "Score", starts_with("wj")) %>%
+  mutate(measure = case_when(measure == "wj.letterWordID.standardScore"      ~ "WJ - Letter-Word ID",
+                             measure == "wj.passageCompletion.standardScore" ~ "WJ - Passage Completion",
+                             measure == "wj.readingFluency.standardScore"    ~ "WJ - Reading Fluency")) %>%
+  ggplot(aes(Score, direct)) +
+    geom_point() +
+    geom_smooth(method = "lm") +
+    scale_x_continuous(name = "Standard Score") +
+    scale_y_continuous(name = "Direct Indicators Score", limits = c(0, 4)) +
+    facet_grid(. ~ measure)
+
+## Tobii indicators and direct indicators
+df %>%
+  gather(key = "tobii_indicator", value = "Duration", c("tobii.avgQTextFixationTime", "tobii.avgQuestionDuration")) %>%
+  mutate(tobii_indicator = case_when(tobii_indicator == "tobii.avgQTextFixationTime" ~ "Average Question Text Fixation",
+                                     tobii_indicator == "tobii.avgQuestionDuration"  ~ "Average Question Duration (Overall)")) %>%
+  ggplot(aes(Duration, direct)) +
+    geom_point() +
+    geom_smooth(method = "lm") +
+    scale_x_continuous(name = "Duration (Seconds)") +
+    scale_y_continuous(name = "Direct Indicators Score", limits = c(0, 4)) +
+    facet_grid(. ~ tobii_indicator, scales = "free_x")
