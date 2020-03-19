@@ -27,7 +27,6 @@ df %<>%
     instructed = instructedItem.sometimes == F | 
                  instructedItem.nearlyAlways == F,
     #Recall items - a count of how many recall items the participant got wrong
-    #Note: This was a high bar to clear, so we may not use it in the summary indicator
     recall = (recall.lowerGrade == F) + 
              (recall.raceDiscrimination == F),
     #Rum raisin scale - a count of how many items on the rum raisin flagged as invalid
@@ -40,7 +39,7 @@ df %<>%
     effort.q1 = effort.q1 <= 2,
     effort.q2 = effort.q2 <= 2,
     #Overall direct item indicator. Not including recall items - see note above
-    direct = instructed + rumRaisin + effort.q1 + effort.q2
+    direct = instructed + rumRaisin + recall + effort.q1 + effort.q2
   )
 
 
