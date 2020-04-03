@@ -1,7 +1,8 @@
 ---
-title: "Tobii and Direct Indicators Descriptive Report"
+title: "Tobii and Direct Indicators Descriptive Report_v1"
 date: "`r format(Sys.time(), '%B %d, %Y')`"
 output: pdf_document
+knit: (function(inputFile, encoding) { rmarkdown::render(inputFile, encoding = encoding, output_file = file.path(dirname(inputFile), 'Tobii and Direct Indicators Descriptive Report_v1.pdf')) })
 ---
 
 ```{r, include = F}
@@ -112,7 +113,8 @@ for(i in 1:nrow(questions_subset)) {
     questions_subset$qText[i] <- paste0(a, b)
   }
 }
-knitr::kable(questions_subset)
+knitr::kable(questions_subset) %>%
+  column_spec(2, "4in")
 ```
 
 \newpage
@@ -203,7 +205,8 @@ for(i in 1:nrow(questions_subset)) {
     questions_subset$qText[i] <- paste0(a, b)
   }
 }
-knitr::kable(questions_subset)
+knitr::kable(questions_subset) %>%
+  column_spec(2, "4in")
 ```
 
 \newpage
