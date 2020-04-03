@@ -2,6 +2,11 @@
 ##  Data Preparation  ##
 ########################
 
+# For now this file is a placeholder. In the final workflow, this file will combine clean REDCap and clean Tobii data.
+# For now, we haven't needed to do any new Tobii analysis to create new variables. So, all of the variables we need
+# are already in the REDCap dataset. So, this just loads and saves the data. In the future, we'll use this to merge in
+# new variables, too.
+
 ####  Startup  ####
 library(easypackages)
 libraries("yaml", "magrittr", "tidyverse")
@@ -10,39 +15,13 @@ rm(list = ls())
 
 filenames <- yaml::read_yaml("C:\\Users\\isaac\\Box\\MAPS - ECHO Tobii Analysis\\MAPS-eyetracking\\filenames.yaml")
 
+load(file = filenames$redcap$with_indirect)
 
 
-####  Data Preparation  ####
-## Load clean data
-# These data include (a) summary-level Tobii data, (b) data from REDCap measures, and (c) archival self-report quality metrics, already calculated
-# Isaac Ahuvia prepared this dataset in November 2019 while at the Developmental Mechanisms Lab, for use in this research
-df <- read.csv(filenames$clean_data$summary,
-               stringsAsFactors = F)
-
-
-## Calculate direct self-report quality metrics
-df %<>%
-  mutate(
-    #Instructed items - a binary variable indicating the participant got at least one instructed item wrong
-    instructed = instructedItem.sometimes == F | 
-                 instructedItem.nearlyAlways == F,
-    #Recall items - a count of how many recall items the participant got wrong
-    recall = (recall.lowerGrade == F) + 
-             (recall.raceDiscrimination == F),
-    #Rum raisin scale - a count of how many items on the rum raisin flagged as invalid
-    rumRaisin = (rumRaisin.q1 >= 4) +
-                (rumRaisin.q2 == 5) +
-                (rumRaisin.q3 >= 7) +
-                (rumRaisin.q4 >= 8) +
-                (rumRaisin.q5 == 3),
-    #Effort items - recode both individually to be binary variables indicating the participant reported low effort
-    effort.q1 = effort.q1 <= 2,
-    effort.q2 = effort.q2 <= 2,
-    #Overall direct item indicator. Not including recall items - see note above
-    direct = instructed + rumRaisin + recall + effort.q1 + effort.q2
-  )
+####  Merge Data  ####
+# TBD
 
 
 
 ####  Save Data  ####
-save(df, file = filenames$clean_data$with_direct_indicators)
+save(df, file = filenames$analysis_ready)

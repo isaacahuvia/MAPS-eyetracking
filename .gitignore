@@ -3,3 +3,5 @@
 .RData
 .Ruserdata
 2_analysis.pdf
+ad_hoc_reports/*.pdf
+ad_hoc_reports/archive/*
