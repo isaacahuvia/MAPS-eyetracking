@@ -1,13 +1,16 @@
 ---
-title: "Tobii and Direct Indicators Descriptive Report_v1"
+title: "Tobii and Direct Indicators Descriptive Report"
 date: "`r format(Sys.time(), '%B %d, %Y')`"
 output: pdf_document
-knit: (function(inputFile, encoding) { rmarkdown::render(inputFile, encoding = encoding, output_file = file.path(dirname(inputFile), 'Tobii and Direct Indicators Descriptive Report_v1.pdf')) })
 ---
 
 ```{r, include = F}
 library(easypackages)
-libraries("yaml", "ggplot2", "magrittr", "tidyverse", "ggpubr", "eyetrackingR", "openxlsx", "knitr", "kableExtra", "cowplot", "magick", "plyr")
+libraries("yaml", "ggplot2", "magrittr", "ggpubr", "eyetrackingR", "openxlsx", "knitr", "kableExtra", "cowplot", "magick", "plyr", "tidyverse", "conflicted", "purrr")
+walk(c("filter", "count", "group_by", "summarise", "summarize", "mutate", "select", "arrange"),
+     ~ conflict_prefer(., "dplyr"))
+
+knitr::opts_chunk$set(echo = F, fig.align = "center")
 
 rm(list = ls())
 
@@ -50,7 +53,8 @@ The report furthermore includes an analysis of (1) and (2) for items with the mo
 The sample for this analysis is not limited by percentage of valid eyetracking samples. There are `r nrow(tobii.participant)` participants in the Tobii sample. Items where participants took more than 90 seconds to respond were removed.
 
 \newpage
-### 1A. Average Response Time by Participant
+
+### Average Response Time by Participant
 
 ```{r, include = F}
 lessThan5 = round(mean(tobii.participant$dur.tot < 5), 2)
@@ -60,7 +64,7 @@ avg = round(mean(tobii.participant$dur.tot), 1)
 
 The lowest average response time was `r min` seconds, while the average was `r avg` seconds. Some in the literature have suggested that a useful cutoff for average response time (under which responses should be treated as invalid) should be approximately 2 seconds. One reason why our questions take longer to respond to, and why this cutoff might not apply here, has to do with how they are presented. In Tobii, questions are presented one at a time, and the participant must hit submit before seeing the next question. This can take much longer than questionnaires where items are presented in rows on the same page and respondents can merely scroll through. This 2 second benchmark was also developed with an adult sample.
 
-```{r, echo = F, warning = F, fig.height = 3.75, fig.width = 5.25}
+```{r, warning = F, fig.height = 3.75, fig.width = 5.25}
 ggplot(tobii.participant) +
   geom_density(aes(dur.tot)) +
   geom_point(aes(x = dur.tot, y = 0), size = 2) +
@@ -72,22 +76,23 @@ ggplot(tobii.participant) +
 I removed questions where the duration was over 90 seconds, as these are likely times when the participant took a break during the survey. The two outliers in this plot (3969 and 4203) are participants who took a very long time for nearly every question.
 
 \newpage
-### 1B. Average Response Time by Participant - 10 Highest-Variance Items
+
+### Average Response Time by Participant - 10 Highest-Variance Items
 
 The following plot includes the same metric, but only across the 10 items with the largest standard deviation in response time.
 
-```{r, echo = F, warning = F, fig.height = 3.75, fig.width = 5.25}
+```{r, warning = F, fig.height = 3.75, fig.width = 5.25}
 topItems <- tobii.item %>%
-  dplyr::group_by(qID) %>%
-  dplyr::summarise(sd = sd(dur.tot)) %>%
-  dplyr::arrange(-sd) %>%
-  dplyr::select(qID) %>%
+  group_by(qID) %>%
+  summarise(sd = sd(dur.tot)) %>%
+  arrange(-sd) %>%
+  select(qID) %>%
   head(10)
 
 tobii.participant_subset <- tobii.item %>%
-  dplyr::filter(qID %in% topItems$qID) %>%
-  dplyr::group_by(participantID) %>%
-  dplyr::summarise(dur.tot = mean(dur.tot),
+  filter(qID %in% topItems$qID) %>%
+  group_by(participantID) %>%
+  summarise(dur.tot = mean(dur.tot),
                    dur.qText = mean(dur.qText))
 
 ggplot(tobii.participant_subset) +
@@ -100,10 +105,10 @@ ggplot(tobii.participant_subset) +
 
 And here are those items:
 
-```{r, echo = F, warning = F}
+```{r, warning = F}
 questions_subset <- questions[questions$qID %in% topItems$qID,] %>%
-  dplyr::arrange(qID) %>%
-  dplyr::select(qID, qText)
+  arrange(qID) %>%
+  select(qID, qText)
 
 cutoff = 175
 for(i in 1:nrow(questions_subset)) {
@@ -113,17 +118,21 @@ for(i in 1:nrow(questions_subset)) {
     questions_subset$qText[i] <- paste0(a, b)
   }
 }
-knitr::kable(questions_subset) %>%
-  column_spec(2, "4in")
+kable(questions_subset,
+      booktabs = T) %>%
+  column_spec(2, "5.5in") %>%
+  kable_styling(latex_options = "basic",
+                position = "center")
 ```
 
 \newpage
-### 1C. Average Response Time by Participant, by Measure
 
-```{r, echo = F, warning = F, fig.height = 7.5, fig.width = 5.25}
+### Average Response Time by Participant, by Measure
+
+```{r, warning = F, fig.height = 7.5, fig.width = 5.25}
 tobii.item %>%
-  dplyr::group_by(participantID, measure) %>%
-  dplyr::summarise(dur.tot = mean(dur.tot),
+  group_by(participantID, measure) %>%
+  summarise(dur.tot = mean(dur.tot),
                    dur.qText = mean(dur.qText)) %>%
   ggplot() +
   geom_density(aes(dur.tot)) +
@@ -144,7 +153,8 @@ PFR: Family Relationships
 PSE: Psychological Stress
 
 \newpage
-### 2A. Average Time Looking at Question Text by Participant
+
+### Average Time Looking at Question Text by Participant
 
 ```{r, include = F}
 qTextAvg = round(mean(tobii.participant$dur.qText), 1)
@@ -154,7 +164,7 @@ lessThan0.1 = round(mean(tobii.participant$dur.qText < .1), 2)
 
 The average fixation time on the question text was `r qTextAvg` seconds. `r lessThan0.5` of participants fixated on the question text for less than .5 seconds on average.
 
-```{r, echo = F, warning = F, fig.height = 3.75, fig.width = 5.25}
+```{r, warning = F, fig.height = 3.75, fig.width = 5.25}
 ggplot(tobii.participant) +
   geom_density(aes(dur.qText)) +
   geom_point(aes(x = dur.qText, y = 0), size = 2) +
@@ -164,22 +174,23 @@ ggplot(tobii.participant) +
 ```
 
 \newpage
-### 2B. Average Time Looking at Question Text by Participant
+
+### Average Time Looking at Question Text by Participant
 
 The following plot includes the same metric, but only across the 10 items with the largest standard deviation in time spent looking at question text.
 
-```{r, echo = F, warning = F, fig.height = 3.75, fig.width = 5.25}
+```{r, warning = F, fig.height = 3.75, fig.width = 5.25}
 topItems <- tobii.item %>%
-  dplyr::group_by(qID) %>%
-  dplyr::summarise(sd = sd(dur.qText)) %>%
-  dplyr::arrange(-sd) %>%
-  dplyr::select(qID) %>%
+  group_by(qID) %>%
+  summarise(sd = sd(dur.qText)) %>%
+  arrange(-sd) %>%
+  select(qID) %>%
   head(10)
 
 tobii.participant_subset <- tobii.item %>%
-  dplyr::filter(qID %in% topItems$qID) %>%
-  dplyr::group_by(participantID) %>%
-  dplyr::summarise(dur.tot = mean(dur.tot),
+  filter(qID %in% topItems$qID) %>%
+  group_by(participantID) %>%
+  summarise(dur.tot = mean(dur.tot),
                    dur.qText = mean(dur.qText))
 
 ggplot(tobii.participant_subset) +
@@ -192,10 +203,10 @@ ggplot(tobii.participant_subset) +
 
 And here are those items:
 
-```{r, echo = F, warning = F}
+```{r, warning = F}
 questions_subset <- questions[questions$qID %in% topItems$qID,] %>%
-  dplyr::arrange(qID) %>%
-  dplyr::select(qID, qText)
+  arrange(qID) %>%
+  select(qID, qText)
 
 cutoff = 175
 for(i in 1:nrow(questions_subset)) {
@@ -205,17 +216,21 @@ for(i in 1:nrow(questions_subset)) {
     questions_subset$qText[i] <- paste0(a, b)
   }
 }
-knitr::kable(questions_subset) %>%
-  column_spec(2, "4in")
+kable(questions_subset,
+      booktabs = T) %>%
+  column_spec(2, "5.5in") %>%
+  kable_styling(latex_options = "basic",
+                position = "center")
 ```
 
 \newpage
-### 2C. Average Time Looking at Question Text by Participant, by Measure
 
-```{r, echo = F, warning = F, fig.height = 7.5, fig.width = 5.25}
+### Average Time Looking at Question Text by Participant, by Measure
+
+```{r, warning = F, fig.height = 7.5, fig.width = 5.25}
 tobii.item %>%
-  dplyr::group_by(participantID, measure) %>%
-  dplyr::summarise(dur.tot = mean(dur.tot),
+  group_by(participantID, measure) %>%
+  summarise(dur.tot = mean(dur.tot),
                    dur.qText = mean(dur.qText)) %>%
   ggplot() +
   geom_density(aes(dur.qText)) +
@@ -236,14 +251,16 @@ PFR: Family Relationships
 PSE: Psychological Stress
 
 \newpage
-### 3. Average Response Time and Average Time Looking at Question Text by Type of Response
-```{r, echo = F, warning = F, fig.height = 4, fig.width = 5}
+
+### Average Response Time and Average Time Looking at Question Text by Type of Response
+
+```{r, warning = F, fig.height = 4, fig.width = 5}
 #ADD AGE
 model.tot <- summary(lm(data = tobii.item, dur.tot ~ extremeFlag))
 
 tobii.item %>%
-  dplyr::group_by(extremeFlag) %>%
-  dplyr::summarise(mean = mean(dur.tot)) %>%
+  group_by(extremeFlag) %>%
+  summarise(mean = mean(dur.tot)) %>%
   ggplot() +
   geom_bar(aes(extremeFlag, mean), stat = "identity") +
   scale_x_discrete(name = "Type of Response", labels = c("Not Extreme", "Extreme")) +
@@ -251,15 +268,19 @@ tobii.item %>%
   labs(title = "Average Response Time by Type of Response") +
   theme_classic()
 
-knitr::kable(model.tot$coefficients, digits = 2)
+kable(model.tot$coefficients, 
+      digits = 2,
+      booktabs = T) %>%
+  kable_styling(latex_options = "basic",
+                position = "center")
 ```
 
-```{r, echo = F, warning = F, fig.height = 4, fig.width = 5}
+```{r, warning = F, fig.height = 4, fig.width = 5}
 model.qTextWithControl <- summary(lm(data = tobii.item, dur.qText ~ extremeFlag + pctValidGazeSamples))
 
 tobii.item %>%
-  dplyr::group_by(extremeFlag) %>%
-  dplyr::summarise(mean = mean(dur.qText)) %>%
+  group_by(extremeFlag) %>%
+  summarise(mean = mean(dur.qText)) %>%
   ggplot() +
   geom_bar(aes(extremeFlag, mean), stat = "identity") +
   scale_x_discrete(name = "Type of Response", labels = c("Not Extreme", "Extreme")) +
@@ -268,18 +289,23 @@ tobii.item %>%
 Question Text by Type of Response") +
   theme_classic()
 
-knitr::kable(model.qTextWithControl$coefficients, digits = 2)
+kable(model.qTextWithControl$coefficients, 
+      digits = 2,
+      booktabs = T) %>%
+  kable_styling(latex_options = "basic",
+                position = "center")
 ```
 
 \newpage
-### 4. Average Response Time and Average Time Looking at Question Text by Position of Item in Survey
+
+### Average Response Time and Average Time Looking at Question Text by Position of Item in Survey
 
 Total time spent on question over time: 
 
-```{r, echo = F, warning = F, fig.height = 3.75, fig.width = 5.25}
+```{r, warning = F, fig.height = 3.75, fig.width = 5.25}
 tobii.item %>%
-  dplyr::group_by(qIndex) %>%
-  dplyr::summarise(dur.tot = mean(dur.tot, na.rm = T)) %>%
+  group_by(qIndex) %>%
+  summarise(dur.tot = mean(dur.tot, na.rm = T)) %>%
   ggplot() +
   geom_line(aes(qIndex, dur.tot)) +
   geom_smooth(aes(qIndex, dur.tot), method = "lm") +
@@ -290,10 +316,10 @@ tobii.item %>%
 
 Time spent looking at question text over time: 
 
-```{r, echo = F, warning = F, fig.height = 3.75, fig.width = 5.25}
+```{r, warning = F, fig.height = 3.75, fig.width = 5.25}
 tobii.item %>%
-  dplyr::group_by(qIndex) %>%
-  dplyr::summarise(dur.qText = mean(dur.qText, na.rm = T)) %>%
+  group_by(qIndex) %>%
+  summarise(dur.qText = mean(dur.qText, na.rm = T)) %>%
   ggplot() +
   geom_line(aes(qIndex, dur.qText)) +
   geom_smooth(aes(qIndex, dur.qText), method = "lm") +
@@ -306,9 +332,93 @@ tobii.item %>%
 
 # Part 2: Tobii, Woodcock-Johnson, and Direct Indicators
 
+In the latter stage of the study, we began to collect direct indicators of self-report validity from participants. On the whole, we collected any direct indicator from 84 participants, and a complete set of direct indicators from 66 participants. Of the 84 participants who completed any direct self-report measure, 39 completed Tobii eye-tracking procedures. As such, we have up to 39 (34 if we only count those with complete direct measure data) participants with which to conduct these analyses.
+
 ## Measure overview
 
-#### Reading level\
+### Direct indicators
+
+In addition to reading level and eye-tracking data, we collected 4 direct indicators of self-report validity:
+
+* Instructed items: Two items with prompts like "please select "Strongly Agree" for this item"
+
+```{r, warning = F, fig.height = 2}
+df %>%
+  count(instructed) %>%
+  filter(!is.na(instructed)) %>%
+  ggplot(aes(instructed, n)) +
+    geom_bar(stat = "identity") +
+    scale_x_continuous(name = "Number of Instructed Items Failed") +
+    scale_y_continuous(name = "Count")
+```
+
+* Recall items: Two items that asked about the contents of previous questions
+
+```{r, warning = F, fig.height = 2}
+df %>%
+  count(recall) %>%
+  filter(!is.na(recall)) %>%
+  ggplot(aes(recall, n)) +
+    geom_bar(stat = "identity") +
+    scale_x_continuous(name = "Number of Recall Items Failed") +
+    scale_y_continuous(name = "Count")
+```
+
+\newpage 
+
+* Effort items: Two items that asked how much effort and attention the participant put in, asked at the end of the questionnaire. "Failure" is defined as reporting the lowest or second-lowest amount of effort/attention.
+
+```{r, warning = F, fig.height = 2}
+df %>%
+  count(effort) %>%
+  filter(!is.na(effort)) %>%
+  ggplot(aes(effort, n)) +
+    geom_bar(stat = "identity") +
+    scale_x_continuous(name = "Number of Effort Items Failed") +
+    scale_y_continuous(name = "Count")
+```
+
+* The "rum raisin" scale: A set of innocuous questions meant to identify participants answering "mischeviously" (e.g. a participant is asked how many siblings they have, and answering "more than 10" is flagged)
+
+```{r, warning = F, fig.height = 2}
+df %>%
+  count(rumRaisin) %>%
+  filter(!is.na(rumRaisin)) %>%
+  ggplot(aes(rumRaisin, n)) +
+    geom_bar(stat = "identity") +
+    scale_x_continuous(name = "Number of Rum Raisin Items Failed", limits = c(-.5, 2.5), breaks = c(0, 1, 2), labels = c("0", "1", "2+")) +
+    scale_y_continuous(name = "Count")
+```
+
+Each item was given a value of 0-2 as per above, and combined into a single measure with values of 0-8.
+
+```{r, warning = F, fig.height = 2.5}
+df %>%
+  count(direct) %>%
+  filter(!is.na(direct)) %>%
+  ggplot(aes(direct, n)) +
+    geom_bar(stat = "identity") +
+    scale_x_continuous(name = "Direct Indicators Score", limits = c(-.5, 8.5), breaks = seq(0, 8, 1)) +
+    scale_y_continuous(name = "Count", limits = c(0, 25), breaks = seq(0, 25, 5))
+```
+
+\newpage
+
+### Tobii indicators
+
+We use measures of (a) average fixation time _on the question text_ and (b) a measure of total question duration (regardless of gaze).
+
+```{r, warning = F, fig.height = 2.5}
+df %>%
+  gather("measure", "duration", tobii.avgQuestionDuration:tobii.avgQTextFixationTime) %>%
+  ggplot(aes(duration)) +
+    geom_histogram(binwidth = .25, color = "white") +
+    scale_x_continuous(name = "Duration") +
+    scale_y_continuous(name = "Count", limits = c(0, 25), breaks = seq(0, 25, 5)) +
+    facet_grid(. ~ measure, scales = "free")
+```
+
+### Reading level
 
 Raw scores to Woodcock-Johnson measures of reading ability:
 
@@ -316,7 +426,7 @@ Raw scores to Woodcock-Johnson measures of reading ability:
 * Passage Completion
 * Reading Fluency
 
-```{r, echo = F, warning = F, fig.height = 2.5}
+```{r, warning = F, fig.height = 2.5}
 df %>%
   gather("measure", "score", wj.letterWordID.rawScore:wj.readingFluency.rawScore) %>%
   filter(score >= 400,
@@ -328,79 +438,13 @@ df %>%
     facet_grid(. ~ measure)
 ```
 
-#### Tobii indicators\
-
-We use measures of (a) average fixation time _on the question text_ and (b) a measure of total question duration (regardless of gaze).
-
-```{r, echo = F, warning = F, fig.height = 2.5}
-df %>%
-  gather("measure", "duration", tobii.avgQuestionDuration:tobii.avgQTextFixationTime) %>%
-  ggplot(aes(duration)) +
-    geom_histogram(binwidth = .25, color = "white") +
-    scale_x_continuous(name = "Duration") +
-    scale_y_continuous(name = "Count", limits = c(0, 25), breaks = seq(0, 25, 5)) +
-    facet_grid(. ~ measure, scales = "free")
-```
-
-#### Direct indicators\
-
-In addition to reading level and eye-tracking data, we collected 4 direct indicators of self-report validity:
-
-* Instructed items: Two items with prompts like "please select "Strongly Agree" for this item"
-
-```{r, echo = F, warning = F, fig.height = 2}
-df %>%
-  ggplot(aes(as.numeric(instructed))) +
-    geom_histogram(bins = 3, color = "white") +
-    scale_x_continuous(name = "Number of Instructed Items Failed") +
-    scale_y_continuous(name = "Count")
-```
-
-* Recall items: Two items that asked about the contents of previous questions
-
-```{r, echo = F, warning = F, fig.height = 2}
-df %>%
-  ggplot(aes(recall)) +
-    geom_histogram(bins = 3, color = "white") +
-    scale_x_continuous(name = "Number of Recall Items Failed") +
-    scale_y_continuous(name = "Count")
-```
-
-* Effort items: Two items that asked how much effort and attention the participant put in, asked at the end of the questionnaire. "Failure" is defined as reporting the lowest or second-lowest amount of effort/attention.
-
-```{r, echo = F, warning = F, fig.height = 2}
-df %>%
-  ggplot(aes(as.numeric(effort))) +
-    geom_histogram(bins = 3, color = "white") +
-    scale_x_continuous(name = "Number of Effort Items Failed") +
-    scale_y_continuous(name = "Count")
-```
-
-* The "rum raisin" scale: A set of innocuous questions meant to identify participants answering "mischeviously" (e.g. a participant is asked how many siblings they have, and answering "more than 10" is flagged)
-
-```{r, echo = F, warning = F, fig.height = 2}
-df %>%
-  ggplot(aes(rumRaisin.raw)) +
-    geom_histogram(bins = 2, color = "white") +
-    scale_x_continuous(name = "Number of Rum Raisin Items Failed", breaks = c(0, 1)) +
-    scale_y_continuous(name = "Count")
-```
-
-Each item was given a value of 0-2 as per above, and combined into a single measure with values of 0-8.
-
-```{r, echo = F, warning = F, fig.height = 2.5}
-df %>%
-  ggplot(aes(direct)) +
-    geom_histogram(binwidth = 1, color = "white") +
-    scale_x_continuous(name = "Direct Indicators Score") +
-    scale_y_continuous(name = "Count", limits = c(0, 25), breaks = seq(0, 25, 5))
-```
+\newpage 
 
 # Correlations 
 
-#### Direct indicators and reading level\
+### Direct indicators and reading level
 
-```{r, echo = F, warning = F, fig.height = 3}
+```{r, warning = F, fig.height = 3}
 df %>%
   gather(key = "measure", value = "Score", starts_with("wj")) %>%
   filter(Score >= 400,
@@ -417,9 +461,27 @@ df %>%
     facet_grid(. ~ measure)
 ``` 
 
-#### Tobii indicators and reading level\
+### Tobii indicators and direct indicators
 
-```{r, echo = F, warning = F, fig.height = 6}
+```{r, warning = F, fig.height = 3}
+df %>%
+  gather(key = "tobii_indicator", value = "Duration", c("tobii.avgQTextFixationTime", "tobii.avgQuestionDuration")) %>%
+  mutate(tobii_indicator = case_when(tobii_indicator == "tobii.avgQTextFixationTime" ~ "Average Question Text Fixation",
+                                     tobii_indicator == "tobii.avgQuestionDuration"  ~ "Average Question Duration (Overall)")) %>%
+  ggplot(aes(Duration, direct)) +
+    geom_point() +
+    geom_smooth(method = "lm") +
+    stat_cor() +
+    scale_x_continuous(name = "Duration (Seconds)") +
+    scale_y_continuous(name = "Direct Indicators Score", limits = c(0, 4)) +
+    facet_grid(. ~ tobii_indicator, scales = "free_x")
+```
+
+\newpage
+
+### Tobii indicators and reading level
+
+```{r, warning = F, fig.height = 6}
 df %>%
   gather(key = "measure", value = "Score", starts_with("wj")) %>%
   filter(Score >= 400,
@@ -439,18 +501,21 @@ df %>%
     facet_grid(measure ~ tobii_indicator, scales = "free_x")
 ```
 
-#### Tobii indicators and direct indicators\
+\newpage
 
-```{r, echo = F, warning = F, fig.height = 3}
+### Average gaze time by overall direct indicators score
+
+I set out to examine average gaze time by instructed item score specifically. However, out of the 14 participants who got at least one instructed item wrong, only 4 had eye-tracking data. Only 1 participant who got both instructed items wrong had eye-tracking data.
+
+To maximize data availability, I've instead plotted gaze time by the overall direct indicators score instead. Again, there are 34 participants who completed all direct indicator measures _and_ have eyetracking data.
+
+```{r, warning = F}
 df %>%
-  gather(key = "tobii_indicator", value = "Duration", c("tobii.avgQTextFixationTime", "tobii.avgQuestionDuration")) %>%
-  mutate(tobii_indicator = case_when(tobii_indicator == "tobii.avgQTextFixationTime" ~ "Average Question Text Fixation",
-                                     tobii_indicator == "tobii.avgQuestionDuration"  ~ "Average Question Duration (Overall)")) %>%
-  ggplot(aes(Duration, direct)) +
-    geom_point() +
-    geom_smooth(method = "lm") +
-    stat_cor() +
-    scale_x_continuous(name = "Duration (Seconds)") +
-    scale_y_continuous(name = "Direct Indicators Score", limits = c(0, 4)) +
-    facet_grid(. ~ tobii_indicator, scales = "free_x")
+  filter(!is.na(direct)) %>%
+  group_by(direct) %>%
+  mutate(directWithLabel = paste0(direct, " (n=", sum(!is.na(direct) & !is.na(tobii.avgQTextFixationTime)), ")")) %>%
+  ggplot(aes(as.character(directWithLabel), tobii.avgQTextFixationTime)) +
+    geom_boxplot() +
+    scale_x_discrete(name = "Direct Indicators Score") +
+    scale_y_continuous(name = "Average Question Text Fixation Duration")
 ```
