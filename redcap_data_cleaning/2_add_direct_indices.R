@@ -33,7 +33,7 @@ df %<>%
     #Effort items
     effort = (effort.q1 <= 2) +
       (effort.q2 <= 2),
-    #Overall direct item indicator. Not including recall items - see note above
+    #Overall direct item indicator (0-8)
     direct = instructed + rumRaisin + recall + effort
   )
 
