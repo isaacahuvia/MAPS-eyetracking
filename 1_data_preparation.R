@@ -23,5 +23,16 @@ load(file = filenames$redcap$with_indirect)
 
 
 
+####  Create New Variables  ####
+df %<>%
+  mutate(birthdate = as.Date(birthdate, format = "%Y-%m-%d"),
+         ECHOVisitDate = as.Date(ECHOVisitDate, format = "%Y-%m-%d"),
+         age = as.numeric((ECHOVisitDate - birthdate) / 365.25),
+         tobii.avgQTextFixationTime_quant = cut(df$tobii.avgQTextFixationTime, breaks = quantile(df$tobii.avgQTextFixationTime, na.rm = T)),
+         tobii.avgQuestionDuration_quant = cut(df$tobii.avgQuestionDuration, breaks = quantile(df$tobii.avgQuestionDuration, na.rm = T))) %>%
+  rowwise() %>%
+  mutate(readingLevelMean = mean(wj.letterWordID.rawScore, wj.passageCompletion.rawScore, wj.readingFluency.rawScore, na.rm = T)) %>%
+  ungroup()
+
 ####  Save Data  ####
 save(df, file = filenames$analysis_ready)

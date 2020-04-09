@@ -1,5 +1,5 @@
 ---
-title: "Tobii and Direct Indicators Descriptive Report"
+title: "Tobii and Direct Indicators Descriptive Report v2"
 date: "`r format(Sys.time(), '%B %d, %Y')`"
 output: pdf_document
 ---
@@ -10,7 +10,7 @@ libraries("yaml", "ggplot2", "magrittr", "ggpubr", "eyetrackingR", "openxlsx", "
 walk(c("filter", "count", "group_by", "summarise", "summarize", "mutate", "select", "arrange"),
      ~ conflict_prefer(., "dplyr"))
 
-knitr::opts_chunk$set(echo = F, fig.align = "center")
+knitr::opts_chunk$set(echo = F, message = F, fig.align = "center")
 
 rm(list = ls())
 
@@ -518,4 +518,102 @@ df %>%
     geom_boxplot() +
     scale_x_discrete(name = "Direct Indicators Score") +
     scale_y_continuous(name = "Average Question Text Fixation Duration")
+```
+
+\newpage
+
+### Participant Characteristics by Response/Fixation Time Quartiles
+
+### Average Question Text Fixation Time
+
+```{r, warning = F}
+df %>%
+  group_by(tobii.avgQTextFixationTime_quant) %>%
+  summarise(n = n(),
+            pctFemale = mean(gender == 2, na.rm = T),
+            medianAge = median(age, na.rm = T),
+            averageRawWJScore = mean(readingLevelMean, na.rm = T),
+            instructed = mean(instructed, na.rm = T),
+            recall = mean(recall, na.rm = T),
+            rumRaisin = mean(rumRaisin, na.rm = T),
+            effort = mean(effort, na.rm = T),
+            directOverall = mean(direct, na.rm = T)) %>%
+  pivot_longer(n:directOverall) %>%
+  pivot_wider(id_cols = name,
+              names_from = tobii.avgQTextFixationTime_quant, 
+              values_from = value) %>%
+  kable(digits = 2)
+```
+
+### Average Question Duration
+
+```{r, warning = F}
+df %>%
+  group_by(tobii.avgQuestionDuration_quant) %>%
+  summarise(n = n(),
+            pctFemale = mean(gender == 2, na.rm = T),
+            medianAge = median(age, na.rm = T),
+            averageRawWJScore = mean(readingLevelMean, na.rm = T),
+            instructed = mean(instructed, na.rm = T),
+            recall = mean(recall, na.rm = T),
+            rumRaisin = mean(rumRaisin, na.rm = T),
+            effort = mean(effort, na.rm = T),
+            directOverall = mean(direct, na.rm = T)) %>%
+  pivot_longer(n:directOverall) %>%
+  pivot_wider(id_cols = name,
+              names_from = tobii.avgQuestionDuration_quant, 
+              values_from = value) %>%
+  kable(digits = 2)
+```
+
+\newpage
+
+### Stepwise Introduction of Response/Fixation Time * Reading Level Interaction in Predicting Direct Measures
+
+### Average Question Text Fixation Time
+
+Average question text fixation time alone is a strong predictor of a participant's direct indicator score, but this is moderated by reading level. However, once an interaction is introduced, all three predictors become significant again (and the R^2 improves).
+
+```{r, results = "asis"}
+report_regression <- function(model, ...){
+  if(knitr::is_html_output()){
+    require(texreg)
+    htmlreg(model, custom.note="%stars. htmlreg", ...)
+  } else if(knitr::is_latex_output()){
+    require(stargazer)
+    stargazer(model, notes="stargazer html", single.row=T, header=F, omit.table.layout = "nml", ...)
+  } else {
+   print("This only works with latex and html output") 
+  }
+}
+
+lm(data = df,
+   direct ~ tobii.avgQTextFixationTime) %>%
+  report_regression()
+
+lm(data = df,
+   direct ~ tobii.avgQTextFixationTime + readingLevelMean)%>%
+  report_regression()
+
+lm(data = df,
+   direct ~ tobii.avgQTextFixationTime + readingLevelMean + (tobii.avgQTextFixationTime * readingLevelMean))%>%
+  report_regression()
+```
+
+### Average Question Duration
+
+A similar, but weaker, pattern can be seen with average question duration.
+
+```{r, results = "asis"}
+lm(data = df,
+   direct ~ tobii.avgQuestionDuration) %>%
+  report_regression()
+
+lm(data = df,
+   direct ~ tobii.avgQuestionDuration + readingLevelMean)%>%
+  report_regression()
+
+lm(data = df,
+   direct ~ tobii.avgQuestionDuration + readingLevelMean + (tobii.avgQuestionDuration * readingLevelMean))%>%
+  report_regression()
 ```
