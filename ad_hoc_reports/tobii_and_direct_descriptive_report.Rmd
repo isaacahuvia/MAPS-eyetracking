@@ -1,12 +1,12 @@
 ---
-title: "Tobii and Direct Indicators Descriptive Report v2"
+title: "Tobii and Direct Indicators Descriptive Report v3"
 date: "`r format(Sys.time(), '%B %d, %Y')`"
 output: pdf_document
 ---
 
 ```{r, include = F}
 library(easypackages)
-libraries("yaml", "ggplot2", "magrittr", "ggpubr", "eyetrackingR", "openxlsx", "knitr", "kableExtra", "cowplot", "magick", "plyr", "tidyverse", "conflicted", "purrr")
+libraries("yaml", "ggplot2", "magrittr", "ggpubr", "eyetrackingR", "openxlsx", "knitr", "kableExtra", "cowplot", "magick", "plyr", "tidyverse", "conflicted", "purrr", "corrplot", "interactions", "zoo")
 walk(c("filter", "count", "group_by", "summarise", "summarize", "mutate", "select", "arrange"),
      ~ conflict_prefer(., "dplyr"))
 
@@ -17,9 +17,10 @@ rm(list = ls())
 filenames <- yaml::read_yaml("C:\\Users\\isaac\\Box\\MAPS - ECHO Tobii Analysis\\MAPS-eyetracking\\filenames.yaml")
 
 ## Load Data
-load(filenames$analysis_ready)
-load(file = filenames$tobii$clean_data$item_level)
-load(file = filenames$tobii$clean_data$participant_level)
+df <- readRDS(filenames$analysis_ready)
+tobii.item <- readRDS(filenames$tobii$clean_data$item_level)
+tobii.participant <- readRDS(filenames$tobii$clean_data$participant_level)
+
 questions <- as.data.frame(
   sapply(
     read.xlsx(filenames$tobii$qID_lookup),
@@ -154,6 +155,34 @@ PSE: Psychological Stress
 
 \newpage
 
+### Average Response Time by Participant - Additional Metrics
+
+#### Percent of questions taking _less than_ 4 seconds
+
+```{r, warning = F, fig.height = 3.75, fig.width = 5.25}
+df %>%
+  ggplot() +
+    geom_density(aes(tobii.pctUnder4Sec)) +
+    geom_point(aes(x = tobii.pctUnder4Sec, y = 0), size = 2) +
+    scale_x_continuous(name = "Percent of Questions Taking <4 Seconds", limits = c(0, 1), labels = scales::percent) +
+    scale_y_continuous(name = "Density", labels = NULL, breaks = NULL) +
+    theme_classic()
+```
+
+#### Standard deviation of response time
+
+```{r, warning = F, fig.height = 3.75, fig.width = 5.25}
+df %>%
+  ggplot() +
+    geom_density(aes(tobii.avgQuestionDuration_sd)) +
+    geom_point(aes(x = tobii.avgQuestionDuration_sd, y = 0), size = 2) +
+    scale_x_continuous(name = "Response Time Standard Deviation") +
+    scale_y_continuous(name = "Density", labels = NULL, breaks = NULL) +
+    theme_classic()
+```
+
+\newpage
+
 ### Average Time Looking at Question Text by Participant
 
 ```{r, include = F}
@@ -249,6 +278,23 @@ GH: Global Health
 PA: Physical Activity
 PFR: Family Relationships
 PSE: Psychological Stress
+
+\newpage
+
+### Average Time Looking at Question Text by Participant - Additional Metrics
+
+#### Standard deviation of gaze time
+
+```{r, warning = F, fig.height = 3.75, fig.width = 5.25}
+df %>%
+  ggplot() +
+    geom_density(aes(tobii.avgQTextFixationTime_sd)) +
+    geom_point(aes(x = tobii.avgQTextFixationTime_sd, y = 0), size = 2) +
+    scale_x_continuous(name = "Fixation Time Standard Deviation") +
+    scale_y_continuous(name = "Density", labels = NULL, breaks = NULL) +
+    theme_classic()
+```
+
 
 \newpage
 
@@ -442,6 +488,183 @@ df %>%
 
 # Correlations 
 
+### Correlation Plot for all of the measures previously discussed
+
+```{r, echo = F, warning = F}
+df %>%
+  select(`Letter-Word ID` = wj.letterWordID.rawScore,
+         `Passage Comp` = wj.passageCompletion.rawScore,
+         `Reading Fluency` = wj.readingFluency.rawScore,
+         `NEPSY: Duration` = nepsy.duration,
+         `NEPSY: Uncorrected` = nepsy.uncorrectedErrors,
+         `NEPSY: Corrected` = nepsy.selfCorrectedErrors,
+         `NEPSY: Tot Errors` = nepsy.totalErrors,
+         `Instructed Items` = instructed,
+         `Recall Items` = recall,
+         `Rum Raisin` = rumRaisin,
+         `Effort Items` = effort,
+         `Omitted Items` = omittedItems,
+         `Mahalanobis D` = mahalanobisDist,
+         `Longstring` = longstring,
+         `Guttman` = polyGuttmanErrors,
+         `Person Total Cor` = personTotalCor, 
+         `Psych Synonyms` = psychSyn, 
+         `Resampled Consistency` = resampledConsistency,
+         `Reversed Item Diff` = reversedItemDifference,
+         `U3` = u3,
+         `Z-score` = zScore,
+         `APSS_CAPE > 2` = infreqSymptoms,
+         `Avg Count FIxations` = meanFixations,
+         `Fixation Time` = tobii.avgQTextFixationTime,
+         `Fixation Time: SD` = tobii.avgQTextFixationTime_sd,
+         `Fixation Time: z` = tobii.avgQTextFixationTime_z,
+         `Question Duration` = tobii.avgQuestionDuration,
+         `Question Duration: SD` = tobii.avgQuestionDuration_sd,
+         `Question Duration: z` = tobii.avgQuestionDuration_z,
+         `Pct < 4 Sec` = tobii.pctUnder4Sec) %>%
+  cor(use = "pairwise.complete.obs") %>%
+  corrplot(type = "full", order = "original", tl.col = "black", tl.cex = .6)
+```
+
+\newpage
+
+### Descriptive Statistics for All Variables in Corrplot
+
+```{r, echo = F}
+df %>%
+  select(participantID, 
+         `Letter-Word ID` = wj.letterWordID.rawScore,
+         `Passage Comp` = wj.passageCompletion.rawScore,
+         `Reading Fluency` = wj.readingFluency.rawScore,
+         `NEPSY: Duration` = nepsy.duration,
+         `NEPSY: Uncorrected` = nepsy.uncorrectedErrors,
+         `NEPSY: Corrected` = nepsy.selfCorrectedErrors,
+         `NEPSY: Tot Errors` = nepsy.totalErrors,
+         `Instructed Items` = instructed,
+         `Recall Items` = recall,
+         `Rum Raisin` = rumRaisin,
+         `Effort Items` = effort,
+         `Omitted Items` = omittedItems,
+         `Mahalanobis D` = mahalanobisDist,
+         `Longstring` = longstring,
+         `Guttman` = polyGuttmanErrors,
+         `Person Total Cor` = personTotalCor, 
+         `Psych Synonyms` = psychSyn, 
+         `Resampled Consistency` = resampledConsistency,
+         `Reversed Item Diff` = reversedItemDifference,
+         `U3` = u3,
+         `Z-score` = zScore,
+         `APSS_CAPE > 2` = infreqSymptoms,
+         `Fixation Time` = tobii.avgQTextFixationTime,
+         `Fixation Time: SD` = tobii.avgQTextFixationTime_sd,
+         `Fixation Time: z` = tobii.avgQTextFixationTime_z,
+         `Question Duration` = tobii.avgQuestionDuration,
+         `Question Duration: SD` = tobii.avgQuestionDuration_sd,
+         `Question Duration: z` = tobii.avgQuestionDuration_z,
+         `Pct < 4 Sec` = tobii.pctUnder4Sec) -> temp
+temp %>%
+  pivot_longer(-participantID, names_to = "Variable", values_to = "Values") %>%
+  group_by(Variable) %>%
+  summarise(nonmissing = mean(!is.na(Values)),
+            min = min(Values, na.rm = T),
+            max = max(Values, na.rm = T),
+            mean = mean(Values, na.rm = T),
+            sd = sd(Values, na.rm = T)) %>%
+  arrange(match(Variable, names(temp))) %>%
+  knitr::kable(booktabs = T, digits = 2)
+```
+
+\newpage
+
+### Indirect Indicators Over Time
+
+We can calculate longstring and inter-item SD over time/at different points in the survey. We can also calculate the number of extreme response choices they endorse. Here we calculate those measures for each question (starting with the 20th) for the previous 20 responses. This is how these measures vary over time as participants go through the survey:
+
+```{r, echo = F}
+tobii.temp <- tobii.item %>%
+  select(participantID, qID, qIndex) %>%
+  mutate(qID = gsub(" ", "_", qID))
+
+redcap.temp <- df %>%
+  select(participantID, PROMIS_PFR_Q1:c6mapdb113) %>%
+  pivot_longer(PROMIS_PFR_Q1:c6mapdb113,
+               names_to = "qID") %>%
+  mutate(participantID = as.character(participantID))
+
+temp <- inner_join(tobii.temp, redcap.temp, by = c("participantID", "qID")) %>%
+  select(-qID) %>%
+  arrange(qIndex) %>%
+  pivot_wider(id_cols = participantID,
+              names_from = qIndex,
+              names_prefix = "q",
+              values_from = value)
+
+source("C:\\Users\\isaac\\Box\\MAPS - ECHO Tobii Analysis\\MAPS-eyetracking\\redcap_data_cleaning\\archival_indicators_functions.R")
+
+x <- list()
+for(i in 1:(length(temp) - 20)) x[[i]] <- c(i:(i+19))
+
+longstringOverTime <- x %>%
+  map(~ longstring(temp,
+                   columns = .) %>%
+        mean()) %>%
+  unlist()
+
+interItemSDOverTime <- x %>%
+  map(~ interItemSD(temp,
+                    columns = .) %>%
+        mean(na.rm = T)) %>%
+  unlist()
+```
+
+```{r, echo = F, warning = F}
+data.frame(
+  qIndex = 20:(length(temp)-1),
+  longString = longstringOverTime
+) %>%
+  ggplot() +
+    geom_point(aes(qIndex, longString)) +
+    scale_x_continuous(name = "Question Index") +
+    scale_y_continuous(name = "Average Longstring\n(Previous 20 Questions)",
+                       limits = c(0, 10)) +
+    ggtitle("Rolling Longstring Over Time")
+```
+
+```{r, echo = F, warning = F}
+data.frame(
+  qIndex = 20:(length(temp)-1),
+  interItemSD = interItemSDOverTime
+) %>%
+  ggplot() +
+    geom_point(aes(qIndex, interItemSD)) +
+    scale_x_continuous(name = "Question Index") +
+    scale_y_continuous(name = "Average Inter-Item SD\n(Previous 20 Questions)",
+                       limits = c(0, 1.5)) +
+    ggtitle("Rolling Inter-Item SD Over Time")
+```
+
+\newpage 
+
+Also, here's how extreme answering changes over time using the same method:
+
+```{r, echo = F, warning = F}
+tobii.item %>%
+  group_by(qIndex) %>%
+  summarise(extreme = mean(extremeFlag)) %>%
+  mutate(runningAvg = zoo::rollmean(extreme,
+                                    k = 20,
+                                    fill = NA,
+                                    align = "right")) %>% 
+  ggplot() +
+    geom_point(aes(qIndex, runningAvg)) +
+    scale_x_continuous(name = "Question Index") +
+    scale_y_continuous(name = "Percent Extreme Responses\n(Previous 20 Questions)",
+                       limits = c(0, 1),
+                       labels = scales::percent_format())
+```
+
+\newpage
+
 ### Direct indicators and reading level
 
 ```{r, warning = F, fig.height = 3}
@@ -592,13 +815,15 @@ lm(data = df,
   report_regression()
 
 lm(data = df,
-   direct ~ tobii.avgQTextFixationTime + readingLevelMean)%>%
+   direct ~ tobii.avgQTextFixationTime + tobii.pctValidGazeSamples + readingLevelMean)%>%
   report_regression()
 
 lm(data = df,
-   direct ~ tobii.avgQTextFixationTime + readingLevelMean + (tobii.avgQTextFixationTime * readingLevelMean))%>%
+   direct ~ tobii.avgQTextFixationTime + tobii.pctValidGazeSamples + readingLevelMean + (tobii.avgQTextFixationTime * readingLevelMean))%>%
   report_regression()
 ```
+
+\newpage
 
 ### Average Question Duration
 
@@ -614,6 +839,22 @@ lm(data = df,
   report_regression()
 
 lm(data = df,
-   direct ~ tobii.avgQuestionDuration + readingLevelMean + (tobii.avgQuestionDuration * readingLevelMean))%>%
+   direct ~ tobii.avgQuestionDuration + readingLevelMean + (tobii.avgQuestionDuration * readingLevelMean)) %>%
   report_regression()
+```
+
+\newpage
+
+Interaction plots for relationships on previous two pages:
+
+```{r, echo = F, fig.height = 3}
+lm(data = df,
+   direct ~ tobii.avgQTextFixationTime + tobii.pctValidGazeSamples + readingLevelMean + (tobii.avgQTextFixationTime * readingLevelMean)) %>%
+  interactions::interact_plot(pred = tobii.avgQTextFixationTime, modx = readingLevelMean)
+```
+
+```{r, echo = F, fig.height = 3}
+lm(data = df,
+   direct ~ tobii.avgQuestionDuration + readingLevelMean + (tobii.avgQuestionDuration * readingLevelMean)) %>%
+  interactions::interact_plot(pred = tobii.avgQuestionDuration, modx = readingLevelMean)
 ```

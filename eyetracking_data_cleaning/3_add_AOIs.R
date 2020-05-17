@@ -3,19 +3,21 @@
 ##       Add AOIs        ##
 ###########################
 
-#Note: Gaze point (ADCSpx) is pixels from upper left towards lower right corner of screen (1920x1080). See https://connect.tobiipro.com/s/case/5001B00001H7qWX/adcspx-gaze-point-coordinates 
+#Note: Gaze point (ADCSpx) is pixels from upper left towards lower right corner of screen (1920x1080). 
+#See https://connect.tobiipro.com/s/case/5001B00001H7qWX/adcspx-gaze-point-coordinates 
 
+####  Startup  ####
 rm(list = ls())
-library(yaml)
-library(openxlsx)
-library(eyetrackingR)
-lookup <- yaml::read_yaml("R:\\MSS\\Research\\Projects\\MAPS-FUS\\Tween Wave\\Survey Visit (ECHO)\\Code\\Eyetracking\\Eyetracking Lookup.yaml")
+library(easypackages)
+libraries("yaml", "openxlsx", "zoo", "conflicted", "eyetrackingR", "tidyverse")
+
+lookup <- yaml::read_yaml("C:\\Users\\isaac\\Box\\MAPS - ECHO Tobii Analysis\\MAPS-eyetracking\\filenames.yaml")
 
 
 
 ####  Read Data  ####
-AOIs <- openxlsx::read.xlsx(lookup$pc$aoi_list)
-load(file = lookup$pc$clean_data$with_qIDs)
+AOIs <- openxlsx::read.xlsx(lookup$tobii$aoi_list)
+df <- readRDS(lookup$tobii$working_data$with_qIDs)
 
 
 
@@ -43,4 +45,4 @@ for(AOI in unique(AOIs$AOI)) {
 
 
 ####  Output Data  ####
-save(df, file = lookup$pc$clean_data$with_AOIs)
+saveRDS(df, file = lookup$tobii$working_data$with_AOIs)

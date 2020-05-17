@@ -10,7 +10,7 @@ rm(list = ls())
 
 filenames <- yaml::read_yaml("C:\\Users\\isaac\\Box\\MAPS - ECHO Tobii Analysis\\MAPS-eyetracking\\filenames.yaml")
 
-load(file = filenames$redcap$with_new_vars)
+df <- readRDS(filenames$redcap$with_new_vars)
 
 
 
@@ -40,4 +40,4 @@ df %<>%
 
 
 ####  Save Data  ####
-save(df, file = filenames$redcap$with_direct)
+saveRDS(df, file = filenames$redcap$with_direct)

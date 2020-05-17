@@ -4,110 +4,119 @@
 #############################
 
 
+####  Startup  ####
 rm(list = ls())
-library(yaml)
-library(eyetrackingR)
-lookup <- yaml::read_yaml("R:\\MSS\\Research\\Projects\\MAPS-FUS\\Tween Wave\\Survey Visit (ECHO)\\Code\\Eyetracking\\Eyetracking Lookup.yaml")
+library(easypackages)
+libraries("yaml", "openxlsx", "zoo", "conflicted", "magrittr", "eyetrackingR", "tidyverse")
+walk(c("lag", "filter", "select", "group_by", "summarise"), 
+     ~ conflict_prefer(., "dplyr"))
+
+lookup <- yaml::read_yaml("C:\\Users\\isaac\\Box\\MAPS - ECHO Tobii Analysis\\MAPS-eyetracking\\filenames.yaml")
 
 
 
 ####  Read Data  ####
-load(file = lookup$clean_data$with_AOIs)
+dfSample <- readRDS(lookup$tobii$working_data$with_AOIs)
 
 
 
 ####  Prepare Sample-Level Data  ####
-#Create a time column in seconds (current timestamp is in microseconds)
-df$timestamp.sec <- df$timestamp / 1000000
-df$time.sec <- df$timestamp.sec - lag(df$timestamp.sec)
-df$time.sec[df$time.sec < 0 | df$time.sec > .01] <- NA
-
-#Not sure what this is about, but for now just filter it out. It's just in 3301
-df <- df[!is.na(df$qID),]
-
-#Remove cases where the timestamp is > 90 sec (generally means the participant left to go to the bathroom or something similar)
-df <- df[!df$timestamp.sec > 90,]
+dfSample %<>%
+  #Create a time column in seconds (current timestamp is in microseconds)
+  mutate(timestamp.sec = timestamp / 1000000,
+         time.sec = (timestamp.sec - lag(timestamp.sec)) %>%
+           ifelse(. < 0 | . > .01, NA, .)) %>%
+  filter(  
+    
+    #Not sure what this is about, but for now just filter it out. It's just in 3301
+    #NOTE - also includes reversed items? Look into this
+    !is.na(qID),
+    
+    #Remove cases where the timestamp is > 90 sec (generally means the participant left to go to the bathroom or something similar)
+    timestamp.sec <= 90
+    
+    )
 
 #Set aside the sample-level data (no summary by item or participant)
-tobii.sample <- df
-# save(tobii.sample, file = lookup$clean_data$analysis_ready$sample_level)
+saveRDS(dfSample, file = lookup$tobii$clean_data$sample_level)
+
+#Quickly summarize to person-level, calculating percent valid gaze samples
+pctValid <- dfSample %>%
+  group_by(participantID) %>%
+  summarize(pctValidGazeSamples = mean(!is.na(gazeAvgX)))
+saveRDS(pctValid, lookup$tobii$working_data$pct_valid)
 
 
 
 ####  Prepare Item-Level Data  ####
-df <- df %>%
-  dplyr::filter(trackLoss == F) %>%
-  dplyr::group_by(participantID, qID) %>%
-  dplyr::summarise(dur.tot = sum(time.sec, na.rm = T),
-                   dur.qText = sum(time.sec[qText == T], na.rm = T),
-                   start = min(timestamp.overall, na.rm = T)) %>%
-  dplyr::arrange(participantID, start) %>%
-  dplyr::select(-start) %>%
-  dplyr::group_by(participantID) %>%
-  dplyr::mutate(qIndex = row_number()) %>%
-  dplyr::mutate(measure = dplyr::case_when(grepl("^PROMIS A Q", qID)   ~ "PROMIS A",
-                                           grepl("^PROMIS F Q", qID)   ~ "PROMIS F",
-                                           grepl("^PROMIS GH Q", qID)  ~ "PROMIS GH",
-                                           grepl("^PROMIS PA Q", qID)  ~ "PROMIS PA",
-                                           grepl("^PROMIS PFR Q", qID) ~ "PROMIS PFR",
-                                           grepl("^PROMIS PSE Q", qID) ~ "PROMIS PSE",
-                                           T                           ~ "MAP-DB"))
+dfItem <- dfSample %>%
+  filter(trackLoss == F) %>%
+  group_by(participantID, qID) %>%
+  summarise(dur.tot = sum(time.sec, na.rm = T),
+            dur.qText = sum(time.sec[qText == T], na.rm = T),
+            fixations = sum(rle(gazeType)$values == "Fixation"),
+            start = min(timestamp.overall, na.rm = T)) %>%
+  arrange(participantID, start) %>%
+  select(-start) %>%
+  group_by(participantID) %>%
+  mutate(qIndex = row_number()) %>%
+  mutate(measure = dplyr::case_when(grepl("^PROMIS A Q", qID)   ~ "PROMIS A",
+                                    grepl("^PROMIS F Q", qID)   ~ "PROMIS F",
+                                    grepl("^PROMIS GH Q", qID)  ~ "PROMIS GH",
+                                    grepl("^PROMIS PA Q", qID)  ~ "PROMIS PA",
+                                    grepl("^PROMIS PFR Q", qID) ~ "PROMIS PFR",
+                                    grepl("^PROMIS PSE Q", qID) ~ "PROMIS PSE",
+                                    T                           ~ "MAP-DB")) %>%
+  ungroup() %>%
+  
+  #Calculate z-score variables
+  group_by(qID) %>%
+  mutate(dur.tot_mean = mean(dur.tot, na.rm = T),
+         dur.tot_sd = sd(dur.tot, na.rm = T),
+         dur.qText_mean = mean(dur.qText, na.rm = T),
+         dur.qText_sd = sd(dur.qText, na.rm = T)) %>%
+  ungroup() %>%
+  mutate(dur.tot_z = (dur.tot - dur.tot_mean) / dur.tot_sd,
+         dur.qText_z = (dur.qText - dur.qText_mean) / dur.qText_sd) 
+
 
 #Add on extreme response indicator
-load(file = lookup$clean_data$responses)
+responses <- readRDS(lookup$tobii$working_data$responses)
 
-df$qID <- gsub(" ", "_", df$qID)
-df$response <- NA
-df$minimumFlag <- NA
-df$extremeFlag <- NA
+#Reshape for merge
+responses %<>%
+  pivot_longer(-participantID,
+               names_to = "qID",
+               values_to = "response") %>%
+  mutate(qID = gsub("_", " ", qID))
 
-for(x in unique(responses$participantID)) {
-  
-  temp <- responses[responses$participantID == x,]
-  
-  for(q in names(temp)[2:length(names(temp))]) {
-    
-    response <- temp[[q]]
-    
-    df$response[df$participantID == x & df$qID == q] <- response
-    
-  }
-  
-}
-
-#Flag extreme responses
 extremeResponses <- c("Never", "Many times each day", "No days", "Almost Always", "Always", "Excellent", "Poor", "All the time")
-df$extremeFlag <- dplyr::if_else(df$response %in% extremeResponses, T, F)
-  
-#Flag lowest responses
 lowestResponses <- c("Never", "Excellent", "No days")
-df$minimumFlag <- dplyr::if_else(df$response %in% lowestResponses, T, F)
 
+dfItem %<>%
+  left_join(responses, by = c("participantID", "qID")) %>%
+  mutate(extremeFlag = response %in% extremeResponses,
+         minimumFlag = response %in% lowestResponses)
 
-
-df$qID <- gsub("_", " ", df$qID)
-
-#Set aside the item-level data (no summary by participant)
-tobii.item <- df
-save(tobii.item, file = lookup$clean_data$analysis_ready$item_level)
+#Merge on pctValidGazeSamples and save
+dfItem %<>%
+  left_join(pctValid, by = "participantID")
+saveRDS(dfItem, file = lookup$tobii$clean_data$item_level)
 
 
 
 ####  Prepare Participant-Level Data  ####
-df <- df %>%
-  dplyr::group_by(participantID) %>%
-  dplyr::summarise(dur.tot = mean(dur.tot),
-                   dur.qText = mean(dur.qText))
-
-#Add on percent of valid gaze samples
-validityByParticipant <- read.csv("R:\\MSS\\Research\\Projects\\MAPS-FUS\\Tween Wave\\Survey Visit (ECHO)\\Data\\Eyetracking\\Raw Data\\Gaze Percentages.csv")
-validityByParticipant <- dplyr::rename(validityByParticipant, participantID = ID, pctValidGazeSamples = Avg)
-df <- merge(df, validityByParticipant, by = "participantID")
+dfParticipant <- dfItem %>%
+  group_by(participantID, pctValidGazeSamples) %>%
+  summarise(dur.tot = mean(dur.tot),
+            dur.qText = mean(dur.qText),
+            meanFixations = mean(fixations),
+            tobii.avgQTextFixationTime_sd = sd(dur.qText, na.rm = T),
+            tobii.avgQuestionDuration_sd = sd(dur.tot, na.rm = T),
+            tobii.pctUnder4Sec = mean(dur.tot < 4, na.rm = T),
+            tobii.avgQuestionDuration_z = mean(dur.tot_z, na.rm = T),
+            tobii.avgQTextFixationTime_z = mean(dur.qText_z, na.rm = T)) %>%
+  ungroup()
 
 #Save the participant-level data
-tobii.participant <- df
-save(tobii.participant, file = lookup$clean_data$analysis_ready$participant_level)
-
-#Add on pctValidGazeSamples to item-level data and re-save
-tobii.item <- merge(tobii.item, dplyr::select(tobii.participant, participantID, pctValidGazeSamples))
-save(tobii.item, file = lookup$clean_data$analysis_ready$item_level)
+saveRDS(dfParticipant, file = lookup$tobii$clean_data$participant_level)

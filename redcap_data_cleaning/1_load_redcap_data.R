@@ -54,4 +54,4 @@ df <- left_join(df, new, by = "participantID")
 
 
 ####  Save Data  ####
-save(df, file = filenames$redcap$with_new_vars)
+saveRDS(df, file = filenames$redcap$with_new_vars)

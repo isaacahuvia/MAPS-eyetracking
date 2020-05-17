@@ -7,6 +7,7 @@ tobii:
     with_qIDs: 'C:\\Users\\isaac\\Box\\MAPS - ECHO Tobii Analysis\\Data\\Tobii\\Working\\with_qIDs.rds'
     with_AOIs: 'C:\\Users\\isaac\\Box\\MAPS - ECHO Tobii Analysis\\Data\\Tobii\\Working\\with_AOIs.rds'
     responses: 'C:\\Users\\isaac\\Box\\MAPS - ECHO Tobii Analysis\\Data\\Tobii\\Working\\responses.rds'
+    pct_valid: 'C:\\Users\\isaac\\Box\\MAPS - ECHO Tobii Analysis\\Data\\Tobii\\Working\\pct_valid.rds'
   clean_data:
     sample_level: 'C:\\Users\\isaac\\Box\\MAPS - ECHO Tobii Analysis\\Data\\Tobii\\tobii_sample_level.rds'
     item_level: 'C:\\Users\\isaac\\Box\\MAPS - ECHO Tobii Analysis\\Data\\Tobii\\tobii_item_level.rds'

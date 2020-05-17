@@ -1,24 +1,20 @@
-###########################
-##  Eyetracking Data #1  ##
-##       Read Data       ##
-###########################
+############################
+##  Eyetracking Data #1b  ##
+##     Read Gaze Data     ##
+############################
 
+####  Startup  ####
 rm(list = ls())
-library(yaml)
-library(readr)
-library(zoo)
-library(dplyr)
-lookup <- yaml::read_yaml("R:\\MSS\\Research\\Projects\\MAPS-FUS\\Tween Wave\\Survey Visit (ECHO)\\Code\\Eyetracking\\Eyetracking Lookup.yaml")
+library(easypackages)
+libraries("yaml", "readr", "zoo", "conflicted", "tidyverse")
+
+lookup <- yaml::read_yaml("C:\\Users\\isaac\\Box\\MAPS - ECHO Tobii Analysis\\MAPS-eyetracking\\filenames.yaml")
 
 
 
 ####  Read Data  ####
 #A list of all files for which we have data for a specific participant, to load
-file_list <- list.files(path = lookup$pc$raw_data, full.names = T)
-
-# #Limit to only QA files
-# QA <- c("3251", "3332", "3589", "4682", "4957")
-# file_list <- file_list[grepl(paste(QA, collapse = "|"), file_list)]
+file_list <- list.files(path = lookup$tobii$raw_data, full.names = T)
 
 #Remove 3248, which does not parse correctly
 file_list <- file_list[!grepl("3248", file_list)]
@@ -31,7 +27,7 @@ for(file in file_list) {
   
   print(paste0(which(file_list == file), " of ", length(file_list), ": ", file))
   
-  id <- substr(file, 109, 112)
+  id <- str_extract(file, "([0-9]{4})(?=.tsv)")
   
   temp <- readr::read_tsv(file) %>%
     dplyr::mutate(
@@ -75,4 +71,4 @@ for(file in file_list) {
 
 
 ####  Output Data  ####
-save(df, file = lookup$pc$clean_data$merged)
+saveRDS(df, file = lookup$tobii$working_data$merged)

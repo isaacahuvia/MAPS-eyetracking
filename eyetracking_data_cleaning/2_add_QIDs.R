@@ -3,42 +3,45 @@
 ##        Add qID        ##
 ###########################
 
+####  Startup  ####
 rm(list = ls())
-library(yaml)
-library(openxlsx)
-library(eyetrackingR)
-lookup <- yaml::read_yaml("R:\\MSS\\Research\\Projects\\MAPS-FUS\\Tween Wave\\Survey Visit (ECHO)\\Code\\Eyetracking\\Eyetracking Lookup.yaml")
+library(easypackages)
+libraries("yaml", "openxlsx", "zoo", "conflicted", "tidyverse")
+
+lookup <- yaml::read_yaml("C:\\Users\\isaac\\Box\\MAPS - ECHO Tobii Analysis\\MAPS-eyetracking\\filenames.yaml")
 
 
 
 ####  Read Data  ####
-load(file = lookup$pc$clean_data$merged)
-AOIs <- openxlsx::read.xlsx(lookup$pc$aoi_list)
-qID_lookup <- openxlsx::read.xlsx(lookup$pc$qID_lookup)
+df <- readRDS(lookup$tobii$working_data$merged)
+AOIs <- openxlsx::read.xlsx(lookup$tobii$aoi_list)
+qID_lookup <- openxlsx::read.xlsx(lookup$tobii$qID_lookup)
 
 
 
 ####  Create qID Column  ####
-df$qID <- NA
-
 #Exclude these rows from qID_lookup as they will be assigned manually
 qID_lookup <- qID_lookup[!grepl("In the past 7 days, I got tired easily", qID_lookup$qText),]
 qID_lookup <- qID_lookup[!grepl("Now we are going to ask about things that you may sometimes feel, think, or do.", qID_lookup$qText),]
 
-for(i in 1:nrow(qID_lookup)) {
-  
-  df$qID[df$qText == qID_lookup$qText[i]] <- qID_lookup$qID[i]
+df %<>%
+  #Join with lookup to add question ID
+  left_join(qID_lookup %>%
+              select(qID, qText),
+            by = "qText") %>%
+  #Manually edit question ID in cases where the question text is duplicated across qIDs
+  mutate(qID = case_when(
     
-}
-
-df$qID[grepl("In the past 7 days, I got tired easily", df$qText) & df$test == "Test 1of3"] <- "PROMIS GH Q8"
-df$qID[grepl("In the past 7 days, I got tired easily", df$qText) & df$test == "Test 3of3"] <- "PROMIS F Q4"
-
-df$qID[grepl("Now we are going to ask about things that you may sometimes feel, think, or do.", df$qText) & df$test == "Test 1of3"] <- "c6mapdbintro1"
-df$qID[grepl("Now we are going to ask about things that you may sometimes feel, think, or do.", df$qText) & df$test == "Test 2of3"] <- "c6mapdbintro2"
-df$qID[grepl("Now we are going to ask about things that you may sometimes feel, think, or do.", df$qText) & df$test == "Test 3of3"] <- "c6mapdbintro3"
+    grepl("In the past 7 days, I got tired easily", df$qText) & df$test == "Test 1of3" ~ "PROMIS GH Q8",
+    grepl("In the past 7 days, I got tired easily", df$qText) & df$test == "Test 3of3" ~ "PROMIS F Q4",
+    grepl("Now we are going to ask about things that you may sometimes feel, think, or do.", df$qText) & df$test == "Test 1of3" ~ "c6mapdbintro1",
+    grepl("Now we are going to ask about things that you may sometimes feel, think, or do.", df$qText) & df$test == "Test 2of3" ~ "c6mapdbintro2",
+    grepl("Now we are going to ask about things that you may sometimes feel, think, or do.", df$qText) & df$test == "Test 3of3" ~ "c6mapdbintro3",
+    T ~ qID
+    
+  ))
 
 
 
 ####  Output Data  ####
-save(df, file = lookup$pc$clean_data$with_qIDs)
+saveRDS(df, file = lookup$tobii$working_data$with_qIDs)
